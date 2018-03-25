@@ -177,7 +177,7 @@ void Passthrough_Transmit(PASSTHROUGH_PACKET *pkt)
 		return;
 		
 	l_PushQ(pkt, txBuffer, &txIn, PASSTHROUGH_TX_BUFFER_SIZE);
-	txCount--;
+	txCount++;
 }
 
 
