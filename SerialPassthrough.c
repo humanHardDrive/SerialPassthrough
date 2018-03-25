@@ -10,6 +10,8 @@ PASSTHROUGH_PACKET txBuffer[PASSTHROUGH_TX_BUFFER_SIZE];
 uint8_t rxIn = 0, rxOut = 0, rxCount = 0;
 uint8_t txIn = 0, txOut = 0, txCount = 0;
 
+PASSTHROUGH_STATE l_CurrentState = STATE_STX;
+
 static void l_PushQ(PASSTHROUGH_PACKET* pkt, PASSTHROUGH_PACKET* q, uint8_t* qIndex, uint8_t qSize)
 {
 	memcpy(&q[*qIndex], pkt, sizeof(PASSTHROUGH_PACKET));
@@ -30,5 +32,12 @@ static void l_PopQ(PASSTHROUGH_PACKET* pkt, PASSTHROUGH_PACKET* q, uint8_t* qInd
 
 void Passthrough_Background(uint8_t c)
 {
-	c = c;
+	switch(l_CurrentState)
+	{
+		case STATE_STX:
+		break;
+		
+		case STATE_CATCHALL:
+		break;
+	}
 }

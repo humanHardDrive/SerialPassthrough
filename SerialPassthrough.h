@@ -14,6 +14,12 @@
 #define PASSTHROUGH_TX_BUFFER_SIZE		8
 #endif
 
+typedef enum
+{
+	STATE_STX = 0,
+	STATE_CATCHALL
+}PASSTHROUGH_STATE;
+
 typedef struct  
 {
 	uint8_t des, src;
