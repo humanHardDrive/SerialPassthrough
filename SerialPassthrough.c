@@ -20,6 +20,9 @@ void (*serial_putc)(uint8_t c);
 
 static void l_PushQ(PASSTHROUGH_PACKET* pkt, PASSTHROUGH_PACKET* q, uint8_t* qIndex, uint8_t qSize)
 {
+	if(!pkt)
+		return;
+	
 	memcpy(&q[*qIndex], pkt, sizeof(PASSTHROUGH_PACKET));
 	
 	(*qIndex)++;
@@ -29,7 +32,7 @@ static void l_PushQ(PASSTHROUGH_PACKET* pkt, PASSTHROUGH_PACKET* q, uint8_t* qIn
 
 static void l_PopQ(PASSTHROUGH_PACKET* pkt, PASSTHROUGH_PACKET* q, uint8_t* qIndex, uint8_t qSize)
 {
-	memcpy(pkt, &q[*qIndex], sizeof(PASSTHROUGH_PACKET));
+	pkt = &q[*qIndex];
 	
 	(*qIndex)++;
 	if(*qIndex >= qSize)
@@ -120,6 +123,88 @@ static uint8_t l_ETXStateHandler(uint8_t c)
 	return 0;
 }
 
+static void l_TXBackground()
+{
+	if(txCount)
+	{
+		PASSTHROUGH_PACKET* txPacket = NULL;
+		uint8_t i;
+		
+		l_PopQ(txPacket, txBuffer, &txOut, PASSTHROUGH_TX_BUFFER_SIZE);
+		
+		if(!txPacket)
+			return;
+		
+		txCount--;
+		
+		serial_putc(PASSTHROUGH_STX);
+		serial_putc(txPacket->des);
+		serial_putc(txPacket->src);
+		serial_putc(txPacket->len);	
+		
+		for(i = 0; i < txPacket->len; i++)
+			serial_putc(txPacket->payload[i]);
+			
+		serial_putc(txPacket->checksum);
+		serial_putc(PASSTHROUGH_ETX);
+	}
+}
+
+
+void Passthrough_BuildPacket(PASSTHROUGH_PACKET* pkt, uint8_t des, uint8_t src, uint8_t* payload, uint8_t len)
+{
+	uint8_t i;
+	
+	if(!pkt)
+		return;
+	
+	if(!payload)
+		return;
+	
+	pkt->des = des;
+	pkt->src = src;
+	pkt->len = len;
+
+	for(i = 0; i < pkt->len; i++)
+		pkt->payload[i] = payload[i];
+
+	pkt->checksum = l_CalculateChecksum(pkt);
+}
+
+void Passthrough_Transmit(PASSTHROUGH_PACKET *pkt)
+{
+	if(!pkt)
+		return;
+		
+	l_PushQ(pkt, txBuffer, &txIn, PASSTHROUGH_TX_BUFFER_SIZE);
+	txCount++;
+}
+
+
+uint8_t Passthrough_PacketsAvailble()
+{
+	return rxCount;
+}
+
+void Passthrough_GetPacket(uint8_t* payload, uint8_t* len)
+{
+	if(rxCount)
+	{
+		PASSTHROUGH_PACKET* rxPacket = NULL;
+		
+		l_PopQ(rxPacket, rxBuffer, &rxOut, PASSTHROUGH_TX_BUFFER_SIZE);
+		
+		if(!rxPacket)
+			return;
+		
+		*len = rxPacket->len;
+		memcpy(payload, rxPacket->payload, rxPacket->len);
+		
+		rxCount--;
+	}
+}
+
+
 void Passthrough_Background(uint8_t c)
 {
 	//Allows RX and TX machines to work on the same state
@@ -160,7 +245,7 @@ void Passthrough_Background(uint8_t c)
 		
 		case STATE_ETX:
 		if(l_ETXStateHandler(c))
-			tempState++;
+			tempState = STATE_STX;
 		break;
 			
 		case STATE_CATCHALL:
@@ -172,10 +257,7 @@ void Passthrough_Background(uint8_t c)
 	{
 		case STATE_STX:
 		if(l_CurrentState == tempState) //No increment
-		{
-			//Add transmit handler
-			l_CurrentState = l_CurrentState; //Keep build from failing	
-		}
+			l_TXBackground();
 		break;
 		
 		case STATE_DES:
