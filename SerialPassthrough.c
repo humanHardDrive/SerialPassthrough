@@ -122,51 +122,64 @@ static uint8_t l_ETXStateHandler(uint8_t c)
 
 void Passthrough_Background(uint8_t c)
 {
+	//Allows RX and TX machines to work on the same state
+	PASSTHROUGH_STATE tempState = l_CurrentState;
+	
+	//RX state machine
 	switch(l_CurrentState)
 	{
 		case STATE_STX:
 		if(l_STXStateHandler(c))
-			l_CurrentState++;
+			tempState++;
 		break;
 		
 		case STATE_DES:
 		if(l_DesStateHandler(c))
-			l_CurrentState++;
+			tempState++;
 		break;
 		
 		case STATE_SRC:
 		if(l_SrcStateHandler(c))
-			l_CurrentState++;
+			tempState++;
 		break;
 		
 		case STATE_LEN:
 		if(l_LenStateHandler(c))
-			l_CurrentState++;
+			tempState++;
 		break;
 		
 		case STATE_PAYLOAD:
 		if(l_PayloadStateHandler(c))
-			l_CurrentState++;
+			tempState++;
 		break;
 		
 		case STATE_CHECKSUM:
 		if(l_ChecksumStateHandler(c))
-			l_CurrentState++;
+			tempState++;
 		break;
 		
-		case STATE_ETX:		
+		case STATE_ETX:
+		if(l_ETXStateHandler(c))
+			tempState++;
+		break;
+			
 		case STATE_CATCHALL:
 		break;
 	}
 	
+	//TX state machine
 	switch(l_CurrentState)
 	{
 		case STATE_STX:
-		//Add transmit handler
+		if(l_CurrentState == tempState) //No increment
+		{
+			//Add transmit handler
+			l_CurrentState = l_CurrentState; //Keep build from failing	
+		}
 		break;
 		
 		case STATE_DES:
-		if(!l_IsForMe)
+		if(!l_IsForMe) //Can only start pass through if the packet's not for me
 		{
 			serial_putc(PASSTHROUGH_STX);
 			serial_putc(c);
@@ -177,19 +190,15 @@ void Passthrough_Background(uint8_t c)
 		case STATE_LEN:
 		case STATE_PAYLOAD:
 		case STATE_CHECKSUM:
-		if(!l_IsForMe)
-			serial_putc(c);
-		break;
-		
 		case STATE_ETX:
 		if(!l_IsForMe)
 			serial_putc(c);
-		
-		if(l_ETXStateHandler(c))
-			l_CurrentState = STATE_STX;
 		break;
 		
 		case STATE_CATCHALL:
 		break;
 	}
+	
+	//Copy at the end
+	l_CurrentState = tempState;
 }
