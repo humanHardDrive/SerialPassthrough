@@ -39,6 +39,7 @@ typedef struct
 	uint8_t checksum;
 }PASSTHROUGH_PACKET;
 
+void Passthrough_SetPutC(void (*putc)(uint8_t));
 
 void Passthrough_BuildPacket(PASSTHROUGH_PACKET* pkt, uint8_t des, uint8_t src, uint8_t* payload, uint8_t len);
 void Passthrough_Transmit(PASSTHROUGH_PACKET *pkt);

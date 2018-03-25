@@ -16,7 +16,7 @@ PASSTHROUGH_STATE l_CurrentState = STATE_STX;
 uint8_t l_DevID = 0xFF;
 uint8_t l_IsForMe = 0;
 
-void (*serial_putc)(uint8_t c);
+void (*serial_putc)(uint8_t c) = NULL;
 
 static void l_PushQ(PASSTHROUGH_PACKET* pkt, PASSTHROUGH_PACKET* q, uint8_t* qIndex, uint8_t qSize)
 {
@@ -205,6 +205,15 @@ void Passthrough_GetPacket(uint8_t* payload, uint8_t* len)
 }
 
 
+void Passthrough_SetPutC(void (*putc)(uint8_t))
+{
+	if(!putc)
+		return;
+	
+	serial_putc = putc;
+}
+
+
 void Passthrough_Background(uint8_t c)
 {
 	//Allows RX and TX machines to work on the same state
@@ -253,34 +262,36 @@ void Passthrough_Background(uint8_t c)
 	}
 	
 	//TX state machine
-	switch(l_CurrentState)
+	if(serial_putc)
 	{
-		case STATE_STX:
-		if(l_CurrentState == tempState) //No increment
-			l_TXBackground();
-		break;
-		
-		case STATE_DES:
-		if(!l_IsForMe) //Can only start pass through if the packet's not for me
+		switch(l_CurrentState)
 		{
-			serial_putc(PASSTHROUGH_STX);
-			serial_putc(c);
+			case STATE_STX:
+			if(l_CurrentState == tempState) //No increment
+				l_TXBackground();
+			break;
+		
+			case STATE_DES:
+			if(!l_IsForMe) //Can only start pass through if the packet's not for me
+			{
+				serial_putc(PASSTHROUGH_STX);
+				serial_putc(c);
+			}
+			break;
+		
+			case STATE_SRC:
+			case STATE_LEN:
+			case STATE_PAYLOAD:
+			case STATE_CHECKSUM:
+			case STATE_ETX:
+			if(!l_IsForMe)
+				serial_putc(c);
+			break;
+		
+			case STATE_CATCHALL:
+			break;
 		}
-		break;
-		
-		case STATE_SRC:
-		case STATE_LEN:
-		case STATE_PAYLOAD:
-		case STATE_CHECKSUM:
-		case STATE_ETX:
-		if(!l_IsForMe)
-			serial_putc(c);
-		break;
-		
-		case STATE_CATCHALL:
-		break;
 	}
-	
 	//Copy at the end
 	l_CurrentState = tempState;
 }
